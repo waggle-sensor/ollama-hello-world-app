@@ -15,7 +15,7 @@ The app takes the following arguments:
 
 The remainder of the arguments are paths to images that will be processes.
 
-For example, running the app using:
+As a complete example, we ask a simple question about [one of the example images](./examples/animal.jpg):
 
 ```
 python3 main.py --model gemma3 --prompt "Are there any animals in this image?" examples/animal.jpg
