@@ -9,10 +9,27 @@ import logging
 import os
 
 
+def wait_for_ollama(client: ollama.Client):
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            client.ps()
+            return
+        except ConnectionError:
+            if attempts >= 5:
+                raise
+        time.sleep(3)
+
+
 def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
     logging.info("Running: model=%r and prompt=%r", model, prompt)
 
     client = ollama.Client(host=host)
+
+    logging.info("Waiting for Ollama on host %r.", host)
+    wait_for_ollama(client)
+    logging.info("Ollama is ready!")
 
     logging.info("Ensuring model %r has been pulled.", model)
     client.pull(model)
