@@ -76,7 +76,9 @@ if __name__ == "__main__":
         "--debug", action="store_true", help="enable debug level logging"
     )
     parser.add_argument(
-        "--host", default=os.getenv("OLLAMA_HOST", "ollama"), help="ollama host"
+        "--host",
+        default=os.getenv("OLLAMA_HOST", "ollama.default.svc.cluster.local"),
+        help="ollama host",
     )
     parser.add_argument("-m", "--model", default="gemma3", help="model to use")
     parser.add_argument(
