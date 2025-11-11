@@ -1,5 +1,5 @@
 name: "ollama-hello-world"
-version: "0.1.0"
+version: "0.1.1"
 description: "Hello world example for using Ollama."
 authors: "Sean Shahkarami"
 homepage: "https://github.com/waggle-sensor/ollama-hello-world-app"
