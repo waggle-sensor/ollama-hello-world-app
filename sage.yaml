@@ -1,0 +1,9 @@
+name: "ollama-hello-world"
+version: "0.1.0"
+description: "Hello world example for using Ollama."
+authors: "Sean Shahkarami"
+homepage: "https://github.com/waggle-sensor/ollama-hello-world-app"
+source:
+  architectures:
+    - "linux/amd64"
+    - "linux/arm64"
