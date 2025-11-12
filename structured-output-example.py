@@ -30,6 +30,8 @@ class ImageSummary(BaseModel):
 
 
 def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
+    embed_model = "mxbai-embed-large"
+
     logging.info("Running: model=%r and prompt=%r", model, prompt)
 
     client = ollama.Client(host=host)
@@ -40,6 +42,7 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
 
     logging.info("Ensuring model %r has been pulled.", model)
     client.pull(model)
+    client.pull(embed_model)
 
     for image in images:
         logging.info("Processing image: %s", image)
@@ -61,9 +64,15 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
             format=ImageSummary.model_json_schema(),
         )
         end_time = time.monotonic()
-        duration = end_time - start_time
+        chat_duration = end_time - start_time
 
         image_summary = ImageSummary.model_validate_json(response.message.content)
+
+        start_time = time.monotonic()
+        # TODO Publish embedding too. For now, we are just computing to see how long it takes.
+        embedding = client.embed(embed_model, image_summary.short_description)
+        end_time = time.monotonic()
+        embed_duration = end_time - start_time
 
         # Build output data.
         output = {
@@ -71,7 +80,8 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
             "model": model,
             "prompt": prompt,
             "output": json.loads(image_summary.model_dump_json()),
-            "duration": round(duration, 3),
+            "chat_duration": round(chat_duration, 3),
+            "embed_duration": round(embed_duration, 3),
         }
 
         output_json = json.dumps(output, separators=(",", ":"), sort_keys=True)
