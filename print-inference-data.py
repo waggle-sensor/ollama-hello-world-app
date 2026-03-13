@@ -3,7 +3,8 @@ import sage_data_client
 import json
 
 
-df = sage_data_client.query("-15m", filter={"name": "inference_log"})
+df = sage_data_client.query("-30d", filter={"name": "inference_log"})
+
 df["vsn"] = df["meta.vsn"]
 
 for r in df.itertuples():

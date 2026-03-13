@@ -2,7 +2,6 @@ import argparse
 import ollama
 import base64
 from pathlib import Path
-import time
 import json
 from waggle.plugin import Plugin
 import logging
@@ -24,7 +23,6 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
         encoded_image = base64.b64encode(image.read_bytes()).decode()
 
         # Run model on example.
-        start_time = time.monotonic()
         response: ollama.ChatResponse = client.chat(
             model=model,
             messages=[
@@ -35,22 +33,27 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
                 },
             ],
         )
-        end_time = time.monotonic()
-        duration = end_time - start_time
 
         # Build output data.
         output = {
+            "created_at": response.created_at,
+            "load_duration": response.load_duration / 1e9,
+            "prompt_eval_count": response.prompt_eval_count,
+            # convert from nanoseconds to seconds
+            "prompt_eval_duration": response.prompt_eval_duration / 1e9,
+            "eval_count": response.eval_count,
+            # convert from nanoseconds to seconds
+            "eval_duration": response.eval_duration / 1e9,
+            "model": response.model,
+            "output": response.message.content,
             "input": str(image),
-            "model": model,
             "prompt": prompt,
-            "output": response["message"]["content"],
-            "duration": round(duration, 3),
         }
 
         output_json = json.dumps(output, separators=(",", ":"), sort_keys=True)
 
         logging.info("Publishing results: %s", output_json)
-        plugin.publish("inference_log", output_json)
+        plugin.publish("ollama_response", output_json)
 
 
 if __name__ == "__main__":
