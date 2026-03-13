@@ -1,6 +1,5 @@
 import argparse
 import ollama
-import base64
 from pathlib import Path
 import json
 from waggle.plugin import Plugin
@@ -19,17 +18,14 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
     for image in images:
         logging.info("Processing image: %s", image)
 
-        # Encode image as Base 64 to pass to Ollama.
-        encoded_image = base64.b64encode(image.read_bytes()).decode()
-
         # Run model on example.
-        response: ollama.ChatResponse = client.chat(
+        response = client.chat(
             model=model,
             messages=[
                 {
                     "role": "user",
                     "content": prompt,
-                    "images": [encoded_image],
+                    "images": [image],
                 },
             ],
         )
