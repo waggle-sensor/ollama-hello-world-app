@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PYWAGGLE_LOG_DIR=test-run python3 main.py --model gemma3 --prompt 'You are a wildfire detection AI analyzing images from a fixed camera mounted 
+PYWAGGLE_LOG_DIR=test-run python3 main.py --model qwen3.5:35b --prompt 'You are a wildfire detection AI analyzing images from a fixed camera mounted 
 above the tree canopy in Montana. Each image shows approximately 50% sky 
 (upper frame) and 50% forested terrain with distant mountains (lower frame).
 
