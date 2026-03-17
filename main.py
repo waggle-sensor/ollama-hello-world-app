@@ -5,6 +5,32 @@ import json
 from waggle.plugin import Plugin
 import logging
 import os
+import base64
+from urllib.parse import urlparse
+
+
+def get_image_data(image_uri: str) -> bytes:
+    scheme = urlparse(image_uri).scheme
+    if scheme in ["http", "https"]:
+        return get_image_data_http(image_uri)
+    return get_image_data_file(image_uri)
+
+
+def get_image_data_http(image_uri: str) -> bytes:
+    from urllib.request import urlopen
+    from http.client import HTTPResponse
+    from http import HTTPStatus
+
+    with urlopen(image_uri, timeout=30) as resp:
+        resp: HTTPResponse
+        if resp.status != HTTPStatus.OK:
+            raise FileNotFoundError(f"Unable to fetch image from URL: {image_uri}")
+        return resp.read()
+
+
+def get_image_data_file(image_uri: str) -> bytes:
+    with open(image_uri, "rb") as f:
+        return f.read()
 
 
 def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
@@ -18,6 +44,9 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
     for image in images:
         logging.info("Processing image: %s", image)
 
+        raw_image_data = get_image_data(image)
+        encoded_image_data = base64.b64encode(raw_image_data).decode()
+
         # Run model on example.
         response = client.chat(
             model=model,
@@ -25,7 +54,7 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
                 {
                     "role": "user",
                     "content": prompt,
-                    "images": [image],
+                    "images": [encoded_image_data],
                 },
             ],
         )
@@ -66,7 +95,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p", "--prompt", default="Describe this image.", help="prompt to use"
     )
-    parser.add_argument("images", nargs="*", type=Path, help="images to process")
+    parser.add_argument("images", nargs="*", help="images to process")
     args = parser.parse_args()
 
     logging.basicConfig(
