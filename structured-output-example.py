@@ -14,9 +14,20 @@ class ImageSummary(BaseModel):
     short_description: str
     detailed_description: str
     objects: list[str]
+    keywords: list[str]
 
+prompt = """You are a helpful image analysis assistant.
 
-def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
+Create both a short and detailed description of the photo.
+
+Create a list of objects in the scene.
+
+Create a list of keywords such as day / night, outdoor / indoor, weather, busy, etc.
+
+You must only output JSON.
+"""
+
+def run(plugin: Plugin, host: str, model: str, images: list[Path]):
     embed_model = "mxbai-embed-large"
 
     logging.info("Running: model=%r and prompt=%r", model, prompt)
@@ -84,9 +95,6 @@ if __name__ == "__main__":
         help="ollama host",
     )
     parser.add_argument("-m", "--model", default="gemma3", help="model to use")
-    parser.add_argument(
-        "-p", "--prompt", default="Describe this image.", help="prompt to use"
-    )
     parser.add_argument("images", nargs="*", type=Path, help="images to process")
     args = parser.parse_args()
 
@@ -101,6 +109,5 @@ if __name__ == "__main__":
             plugin=plugin,
             host=args.host,
             model=args.model,
-            prompt=args.prompt,
             images=args.images,
         )
