@@ -7,12 +7,15 @@ import logging
 import os
 import base64
 from urllib.parse import urlparse
+import subprocess
 
 
 def get_image_data(image_uri: str) -> bytes:
     scheme = urlparse(image_uri).scheme
     if scheme in ["http", "https"]:
         return get_image_data_http(image_uri)
+    if scheme in ["rtsp"]:
+        return get_image_data_rtsp(image_uri)
     return get_image_data_file(image_uri)
 
 
@@ -20,7 +23,7 @@ def get_image_data_http(image_uri: str) -> bytes:
     from urllib.request import urlopen
     from http.client import HTTPResponse
     from http import HTTPStatus
-
+    logging.info("Fetching image from HTTP %s", image_uri)
     with urlopen(image_uri, timeout=30) as resp:
         resp: HTTPResponse
         if resp.status != HTTPStatus.OK:
@@ -28,9 +31,33 @@ def get_image_data_http(image_uri: str) -> bytes:
         return resp.read()
 
 
+def get_image_data_rtsp(image_uri: str) -> bytes:
+    logging.info("Fetching image from RTSP stream %s", image_uri)
+    # Fetch latest frame from RTSP stream using ffmpeg.
+    subprocess.check_output([
+        "ffmpeg",
+        "-rtsp_transport",
+        "tcp",
+        "-fflags",
+        "nobuffer",
+        "-flags",
+        "low_delay",
+        "-i", image_uri,
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        "-update",
+        "1",
+        "-y",
+        "output.jpg",
+    ])
+    return Path("output.jpg").read_bytes()
+
+
 def get_image_data_file(image_uri: str) -> bytes:
-    with open(image_uri, "rb") as f:
-        return f.read()
+    logging.info("Fetching image from file %s", image_uri)
+    return Path(image_uri).read_bytes()
 
 
 def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
