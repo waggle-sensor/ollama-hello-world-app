@@ -2,12 +2,13 @@ import argparse
 import ollama
 from pathlib import Path
 import json
-from waggle.plugin import Plugin
+from waggle.plugin import Plugin, get_timestamp
 import logging
 import os
 import base64
 from urllib.parse import urlparse
 import subprocess
+import time
 
 
 def get_image_data(image_uri: str) -> bytes:
@@ -60,7 +61,15 @@ def get_image_data_file(image_uri: str) -> bytes:
     return Path(image_uri).read_bytes()
 
 
-def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
+def guess_image_type(data: bytes) -> str:
+    if data.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    return ""
+
+
+def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path], no_tools: bool, max_steps: int):
     logging.info("Running: model=%r and prompt=%r", model, prompt)
 
     client = ollama.Client(host=host)
@@ -71,33 +80,126 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path]):
     for image in images:
         logging.info("Processing image: %s", image)
 
+        state = {}
+
+        state["image_timestamp"] = get_timestamp()
         raw_image_data = get_image_data(image)
+
+        image_type = guess_image_type(raw_image_data)
+
+        if not image_type:
+            logging.info("Unknown image type for %s", image)
+            continue
+
+        state["image_data"] = raw_image_data
+        state["image_type"] = image_type
+
         encoded_image_data = base64.b64encode(raw_image_data).decode()
 
-        # Run model on example.
-        response = client.chat(
-            model=model,
-            messages=[
+        def upload_image(reason: str) -> str:
+            """Upload the image currently being processed along with a reason for uploading the image.
+
+            Args:
+                reason: The reason for uploading the image.
+
+            Returns:
+                Confirmation on whether image was queued for upload.
+            """
+            filename = f"upload.{state['image_type']}"
+            Path(filename).write_bytes(state['image_data'])
+            plugin.upload_file(filename, timestamp=state["image_timestamp"])
+            plugin.publish("upload_reason", reason, timestamp=state["image_timestamp"])
+            return "Successfully queued image for upload."
+
+        messages = [
                 {
                     "role": "user",
                     "content": prompt,
                     "images": [encoded_image_data],
                 },
-            ],
-        )
+            ]
+
+        if no_tools:
+            logging.info("Tools are disabled.")
+            tools = None
+        else:
+            tools = [upload_image]
+
+        # Init metrics.
+        chat_start_time = time.monotonic_ns()
+        load_duration_total = 0
+        prompt_eval_count_total = 0
+        prompt_eval_duration_total = 0
+        eval_count_total = 0
+        eval_duration_total = 0
+        tool_calls_total = 0
+
+        step = 1
+
+        while True:
+            if step > max_steps:
+                raise RuntimeError("Chat exceeded maximum number of steps.")
+            step += 1
+
+            logging.info("Starting chat")
+
+            response = client.chat(
+                model=model,
+                messages=messages,
+                tools=tools,
+            )
+
+            logging.info("Got chat response")
+
+            messages.append(response.message)
+
+            # Update metrics.
+            load_duration_total += response.load_duration
+            prompt_eval_count_total += response.prompt_eval_count
+            prompt_eval_duration_total += response.prompt_eval_duration
+            eval_count_total += response.eval_count
+            eval_duration_total += response.eval_duration
+
+            # Check tool calls.
+            tool_calls = response.message.tool_calls
+
+            # Stop if no more tools are being called.
+            if not tool_calls:
+                break
+
+            for call in tool_calls:
+                logging.info("Calling tool %s", call.function.name)
+                tool_calls_total += 1
+                if call.function.name == "upload_image":
+                    result = upload_image(**call.function.arguments)
+                else:
+                    result = "Unknown tool"
+                messages.append({
+                    "role": "tool",
+                    "tool_name": call.function.name,
+                    "content": str(result),
+                })
+
+            logging.info("Chat loop is done")
+
+        chat_stop_time = time.monotonic_ns()
+        chat_duration_total = chat_stop_time - chat_start_time
 
         # Build output data.
+        response = messages[-1]
+
         output = {
-            "created_at": response.created_at,
-            "load_duration": response.load_duration / 1e9,
-            "prompt_eval_count": response.prompt_eval_count,
+            "chat_duration_total": chat_duration_total / 1e9,
+            "load_duration_total": load_duration_total / 1e9,
+            "prompt_eval_count_total": prompt_eval_count_total,
             # convert from nanoseconds to seconds
-            "prompt_eval_duration": response.prompt_eval_duration / 1e9,
-            "eval_count": response.eval_count,
+            "prompt_eval_duration_total": prompt_eval_duration_total / 1e9,
+            "eval_count_total": eval_count_total,
             # convert from nanoseconds to seconds
-            "eval_duration": response.eval_duration / 1e9,
-            "model": response.model,
-            "output": response.message.content,
+            "eval_duration_total": eval_duration_total / 1e9,
+            "tool_calls_total": tool_calls_total,
+            "model": model,
+            "output": response.content,
             "input": str(image),
             "prompt": prompt,
         }
@@ -122,6 +224,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p", "--prompt", default="Describe this image.", help="prompt to use"
     )
+    parser.add_argument("--no-tools", action="store_true", help="do not allow tool calling")
+    parser.add_argument("--max-steps", type=int, default=10, help="maximum number of steps agent is allowed to take")
     parser.add_argument("images", nargs="*", help="images to process")
     args = parser.parse_args()
 
@@ -138,4 +242,6 @@ if __name__ == "__main__":
             model=args.model,
             prompt=args.prompt,
             images=args.images,
+            no_tools=args.no_tools,
+            max_steps=args.max_steps,
         )

@@ -99,4 +99,6 @@ Return your analysis as a JSON object with the following fields:
   regardless of other factors
 - Err toward reporting over silence: a false positive is far less costly 
   than a missed fire
+
+You must upload an image along with the reason if and only if there is something dangerous in the scene.
 ' examples/fire.png
