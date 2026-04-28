@@ -153,12 +153,12 @@ def run(plugin: Plugin, host: str, model: str, prompt: str, images: list[Path], 
 
             messages.append(response.message)
 
-            # Update metrics.
-            load_duration_total += response.load_duration
-            prompt_eval_count_total += response.prompt_eval_count
-            prompt_eval_duration_total += response.prompt_eval_duration
-            eval_count_total += response.eval_count
-            eval_duration_total += response.eval_duration
+            # Update token and duration metrics, if they exist.
+            load_duration_total += response.load_duration or 0
+            prompt_eval_count_total += response.prompt_eval_count or 0
+            prompt_eval_duration_total += response.prompt_eval_duration or 0
+            eval_count_total += response.eval_count or 0
+            eval_duration_total += response.eval_duration or 0
 
             # Check tool calls.
             tool_calls = response.message.tool_calls
