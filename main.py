@@ -51,7 +51,10 @@ def get_image_data_rtsp(image_uri: str) -> bytes:
             "output.jpg",
         ], stderr=subprocess.PIPE, text=True)
     except subprocess.CalledProcessError as e:
-        last_stderr_line = e.stderr.splitlines()[-1]
+        stderr_lines = e.stderr.splitlines()
+        last_stderr_line = ""
+        if len(stderr_lines) > 0:
+            last_stderr_line = stderr_lines[-1]
         # Raise a more informative exception, if ffmpeg provides its own error.
         if "error" in last_stderr_line.lower():
             raise RuntimeError(f"Error during RTSP fetch: {last_stderr_line}")
