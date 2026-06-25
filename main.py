@@ -35,20 +35,28 @@ def get_image_data_http(image_uri: str) -> bytes:
 def get_image_data_rtsp(image_uri: str) -> bytes:
     logging.info("Fetching image from RTSP stream %s", image_uri)
     # Fetch latest frame from RTSP stream using ffmpeg.
-    subprocess.check_output([
-        "ffmpeg",
-        "-rtsp_transport",
-        "tcp",
-        "-i", image_uri,
-        "-frames:v",
-        "1",
-        "-q:v",
-        "2",
-        "-update",
-        "1",
-        "-y",
-        "output.jpg",
-    ])
+    try:
+        subprocess.check_output([
+            "ffmpeg",
+            "-rtsp_transport",
+            "tcp",
+            "-i", image_uri,
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+            "-update",
+            "1",
+            "-y",
+            "output.jpg",
+        ], stderr=subprocess.PIPE, text=True)
+    except subprocess.CalledProcessError as e:
+        last_line = e.stderr.splitlines()[-1]
+        # Raise a more informative exception, if ffmpeg provides its own error.
+        if "Error" in last_line:
+            raise RuntimeError(f"Error during RTSP fetch: {last_line}")
+        # Fallback to reraising original exception.
+        raise
     return Path("output.jpg").read_bytes()
 
 
