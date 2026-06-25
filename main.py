@@ -51,6 +51,7 @@ def get_image_data_rtsp(image_uri: str) -> bytes:
             "output.jpg",
         ], stderr=subprocess.PIPE, text=True)
     except subprocess.CalledProcessError as e:
+        # Attempt to get last stderr line and fallback to empty string if none.
         stderr_lines = e.stderr.splitlines()
         last_stderr_line = ""
         if len(stderr_lines) > 0:
